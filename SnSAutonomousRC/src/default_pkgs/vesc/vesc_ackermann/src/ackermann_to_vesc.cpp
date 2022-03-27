@@ -30,7 +30,8 @@ AckermannToVesc::AckermannToVesc(ros::NodeHandle nh, ros::NodeHandle private_nh)
   servo_pub_ = nh.advertise<std_msgs::Float64>("commands/servo/position", 10);
 
   // subscribe to ackermann topic
-  ackermann_sub_ = nh.subscribe("ackermann_cmd", 10, &AckermannToVesc::ackermannCmdCallback, this);
+  //ackermann_sub_ = nh.subscribe("ackermann_cmd", 10, &AckermannToVesc::ackermannCmdCallback, this);
+  ackermann_sub_ = nh.subscribe("/driveTest", 10, &AckermannToVesc::ackermannCmdCallback, this);
 }
 
 typedef ackermann_msgs::AckermannDriveStamped::ConstPtr AckermannMsgPtr;
