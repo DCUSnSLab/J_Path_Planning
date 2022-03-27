@@ -140,8 +140,10 @@ class AlgorithmSelector():
             elif self.name == 'processkill':
                 exit()
             #print('lenth of waypoint :', len(self.waypointList))
-            self.ackermannMSG.drive.speed = self.speedA
-            self.ackermannMSG.drive.steering_angle = self.steering_angleA
+            self.ackermannMSG.drive.speed = speed
+            self.ackermannMSG.drive.steering_angle = steering_angle
+            #self.ackermannMSG.drive.speed = self.speedA
+            #self.ackermannMSG.drive.steering_angle = self.steering_angleA
             self.drivePub.publish(self.ackermannMSG)
 
 if __name__ == '__main__':
