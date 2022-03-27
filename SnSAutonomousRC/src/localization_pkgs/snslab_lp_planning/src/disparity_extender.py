@@ -5,6 +5,7 @@ from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from geometry_msgs.msg import PolygonStamped
 from sensor_msgs.msg import LaserScan
 import time
+import math
 
 class DisparityExtenderMethod:
     CAR_WIDTH = 0.31  # simulator car
@@ -67,7 +68,19 @@ class DisparityExtenderMethod:
             Possible Improvements: use a different method to calculate the angle
         """
         angle = 2 * np.arcsin(width / (2 * dist))
-        num_points = int(np.ceil(angle / self.radians_per_point))
+
+        #print('width', width)
+        #print('dist', dist)
+        #print('angle', angle)
+        #print('radians_per_point', self.radians_per_point)
+
+        if math.isnan(angle) :  # if angle is NAN
+            num_points = 0
+
+        else:
+            num_points = int(np.ceil(angle / self.radians_per_point))
+            #print('num_points', num_points)
+
         return num_points
 
     def cover_points(self, num_points, start_idx, cover_right, ranges):
@@ -103,19 +116,33 @@ class DisparityExtenderMethod:
             resultant covered array.
             Possible Improvements: reduce to fewer lines
         """
+        num_points_to_cover = 0
         width_to_cover = (car_width / 2) * (1 + extra_pct / 100)
+        print(disparities)
+
         for index in disparities:
             first_idx = index - 1
             points = ranges[first_idx:first_idx + 2]
-            #print('points:', points)
+
+            if points == []:
+                break
             close_idx = first_idx + np.argmin(points)
             far_idx = first_idx + np.argmax(points)
             close_dist = ranges[close_idx]
             num_points_to_cover = self.get_num_points_to_cover(close_dist,
                                                                width_to_cover)
             cover_right = close_idx < far_idx
-            ranges = self.cover_points(num_points_to_cover, close_idx,
+            #print('num', num_points_to_cover)
+
+            if num_points_to_cover == 0:
+                ranges = []
+                break
+            else:
+                ranges = self.cover_points(num_points_to_cover, close_idx,
                                        cover_right, ranges)
+
+        if num_points_to_cover == 0:
+            ranges = []
         return ranges
 
     def get_steering_angle(self, range_index, range_len):
@@ -136,12 +163,19 @@ class DisparityExtenderMethod:
         proc_ranges = self.preprocess_lidar(ranges)
         differences = self.get_differences(proc_ranges) # two point difference of distance
         disparities = self.get_disparities(differences, self.DIFFERENCE_THRESHOLD)
+
         proc_ranges = self.extend_disparities(disparities, proc_ranges,
-                                              self.CAR_WIDTH, self.SAFETY_PERCENTAGE)
+                                          self.CAR_WIDTH, self.SAFETY_PERCENTAGE)
+        #print(proc_ranges)
+        if proc_ranges == []:
+            #print(3)
+            speed = 0
+            steering_angle = 0
         #print(proc_ranges.argmax())
-        steering_angle = self.get_steering_angle(proc_ranges.argmax(),
+        else:
+            steering_angle = self.get_steering_angle(proc_ranges.argmax(),
                                                  len(proc_ranges))
-        speed = self.SPEED
+            speed = self.SPEED
         return speed, steering_angle
 
     def inputRawData(self, data):
