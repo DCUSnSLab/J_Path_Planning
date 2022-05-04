@@ -168,6 +168,34 @@ class TrajectoryPoint():
         #print(self.markerArray)
         self.publisher.publish(self.markerArray)
 
+
+    def ros_marker4(self, waypointList, r, g, b):
+        id = 800
+
+        for waypoint in waypointList:
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.scale.x = 0.3
+            marker.scale.y = 0.3
+            marker.scale.z = 0.3
+            marker.color.a = 1
+            marker.color.r = r
+            marker.color.g = g
+            marker.color.b = b
+            marker.id =id
+            marker.pose.position.x = waypoint[0]
+            marker.pose.position.y = waypoint[1]
+            marker.pose.position.z = 0
+            marker.pose.orientation.w = 1.0
+
+            self.markerArray.markers.append(marker)
+            id +=1
+
+        #print(self.markerArray)
+        self.publisher.publish(self.markerArray)
+
 class ObstaclePositionEstimation():
     # Specify the waypoint range
 
@@ -175,7 +203,7 @@ class ObstaclePositionEstimation():
         self.width_to_cover = (CAR_WIDTH / 2) * (1 + SAFETY_PERCENTAGE / 100)
 
     def waypoint_range(self, waypointList, radians_per_point, waypoint_idx):
-        #file = open('/home/jaehoon/SnSAutonomousRC/data_file/waypoint_distance_data2-1.txt', 'a')
+        # file = open('/home/jaehoon/SnSAutonomousRC/data_file/waypoint_distance_data2-1.txt', 'a')
         waypointRange = waypointList
         point_v = 0.0
         point_w = 0.0
@@ -202,7 +230,6 @@ class ObstaclePositionEstimation():
             vehicle_width_radian = 2 * np.arcsin(self.width_to_cover / (2 * distance))
             print('vehicle_width_radian_arcsin :', vehicle_width_radian)
             #print('vehicle_width_radian_arctan :', 2 * np.arctan2(self.width_to_cover,(2 * distance)))
-
             if math.isnan(vehicle_width_radian) == False:
                 vehicle_width_radian_array = np.append(vehicle_width_radian_array, vehicle_width_radian)
                 point_v = int(math.ceil(vehicle_width_radian / radians_per_point)) # The angle of from waypoint to end of waypoint in vehicle width
@@ -223,7 +250,7 @@ class ObstaclePositionEstimation():
         # file.write('x :' + str(w[0]) + ' y :' + str(w[1]) + '\n\n')
         # file.write('waypoint index :' + str(waypoint_idx) + '\n\n')
         # file.write('y :' + str(w[1]) + '\n\n')
-        # file.write('vehicle width radian :' + str(vehicle_width_radian_array[0]) + '\n\n')
+        # # file.write('vehicle width radian :' + str(vehicle_width_radian_array[0]) + '\n\n')
         # file.write('left_radian :' + str(result_points_left[0]) + '\n\n')
         # file.write('right_radian :' + str(result_points_right[0]) + '\n\n')
 
@@ -248,18 +275,24 @@ class ObstaclePositionEstimation():
         return angle
 
 
-    def object_side(self, waypoint_side, waypoint, radian_per_point):
+    def waypoint_side(self, waypoint_side, waypoint, radian_per_point):
         #file = open('/home/jaehoon/SnSAutonomousRC/data_file/waypoint_distance_data7.txt', 'a')
         waypoint_side = waypoint_side * math.pi/180
-        a = np.array([])
         waypoint_dist = math.sqrt(waypoint[0]**2 + waypoint[1]**2)
 
-        x = math.cos(waypoint_side) * waypoint_dist  # expect problem
-        y = math.sin(waypoint_side) * waypoint_dist  # expect problem
-        r = math.sqrt((waypoint[0] - x)**2 + (waypoint[1] - y)**2)  # problem
+        x = math.cos(waypoint_side) * waypoint_dist  # The x coordinates separated by the width of the vehicle
+        y = math.sin(waypoint_side) * waypoint_dist  # The y coordinates of right side separated by the width of the vehicle
+        r = math.sqrt((waypoint[0] - x)**2 + (waypoint[1] - y)**2)  # radius of a virtual circle
 
-        left_side_radian = math.atan2(waypoint[1] + r, waypoint[0])
-        right_side_radian = math.atan2(waypoint[1] - r, waypoint[0])
+        left_y = waypoint[1] + r    #
+        right_y = waypoint[1] - r
+
+        waypoint_up_side_radian, waypoint_side_distance = self.waypoint_up_side(waypoint, left_y, right_y, r, radian_per_point)
+
+        left_side_radian = math.atan2(left_y, waypoint[0])
+        right_side_radian = math.atan2(right_y, waypoint[0])
+
+
 
         print('waypoint (x,y) :', [waypoint[0],waypoint[1]])
         print('transform_waypoint_left_point :', np.array([waypoint[0], waypoint[1]+r]))
@@ -273,26 +306,76 @@ class ObstaclePositionEstimation():
         # file.write('transfrom_waypoint_left_point : ' + str(np.array([waypoint[0], waypoint[1]+r])) + '\n\n')
         # file.write('transfrom_waypoint_right_point : ' + str(np.array([waypoint[0], waypoint[1]-r])) + '\n\n')
         # file.write('radius : ' + str(r) + '\n\n')
+        # file.close()
 
-        a = np.append(a, np.array([waypoint[0], waypoint[1]+r]))
-        a = np.append(a, np.array([waypoint[0], waypoint[1]-r]))
+        #TrajectoryPoint().ros_marker3(a, 0, 1, 0)
 
-        a = np.reshape(a, (2, 2))
 
-        #file.close()
+        return waypoint_up_side_radian, waypoint_side_distance
 
-        TrajectoryPoint().ros_marker3(a, 0, 1, 0)
-
-        # 1 : The radian of waypoint left side, 2 : The radian of waypoint right side, 3 : left side distance, 4 : right side distance
-        return int(math.ceil(left_side_radian / radian_per_point)), int(math.ceil(right_side_radian / radian_per_point)), \
-               math.sqrt(waypoint[0]**2 + (waypoint[1]+r)**2), math.sqrt(waypoint[0]**2 + (waypoint[1]**2))
+        # # 1 : The radian of waypoint left side, 2 : The radian of waypoint right side, 3 : left side distance, 4 : right side distance
+        # return int(math.ceil(left_side_radian / radian_per_point)), int(math.ceil(right_side_radian / radian_per_point)), \
+        #        math.sqrt(waypoint[0]**2 + (waypoint[1]+r)**2), math.sqrt(waypoint[0]**2 + (waypoint[1]-r)**2)
 
 
         #return np.array([waypoint[0], waypoint[1]-r])  # 1 : waypoint_left_side, 2 : waypoint_right_side
 
 
-    def object_detection(self, waypoint_left_end, waypoint_right_end, lidar_data):
-        pass
+    def waypoint_up_side(self, waypoint, waypoint_left_y, waypoint_right_y, radius, radian_per_point):
+        waypoint_side_radian = np.array([], dtype=np.int)
+        waypoint_side_distance = np.array([])
+        a = np.array([])
+
+        for i in range(0, 8, 2):
+            side_radian = math.pi + math.atan2(waypoint_left_y, waypoint[0] + i/10)
+            side_radian = int(math.ceil(side_radian / radian_per_point))
+            waypoint_side_radian = np.append(waypoint_side_radian, side_radian)
+
+            side_radian = math.pi + math.atan2(waypoint_right_y, waypoint[0] + i/10)
+            side_radian = int(math.ceil(side_radian / radian_per_point))
+
+            waypoint_side_radian = np.append(waypoint_side_radian, side_radian)
+            waypoint_side_distance = np.append(waypoint_side_distance, math.sqrt((waypoint[0]+i/10)**2 + waypoint_left_y**2)) # The distance of left side
+            waypoint_side_distance = np.append(waypoint_side_distance, math.sqrt((waypoint[0]+i/10)**2 + waypoint[1]**2))
+            waypoint_side_distance = np.append(waypoint_side_distance, math.sqrt((waypoint[0]+i/10)**2 + waypoint_right_y**2)) # The distance of right side
+
+            a = np.append(a, waypoint[0]+i/10)
+            a = np.append(a, waypoint_left_y)
+            a = np.append(a, waypoint[0] + i/10)
+            a = np.append(a, waypoint_right_y)
+
+        waypoint_side_radian = np.reshape(waypoint_side_radian, (int(len(waypoint_side_radian)/2), 2))
+        waypoint_side_distance = np.reshape(waypoint_side_distance, (int(len(waypoint_side_distance)/3), 3))
+
+        a = np.reshape(a, (int(len(a)/2), 2))
+        TrajectoryPoint().ros_marker4(a, 0, 1, 0)
+
+        print('w_left_side :', waypoint_side_radian[0][0])
+        print('w_right_side :', waypoint_side_radian[0][1])
+
+        print('left_dist :', math.sqrt(waypoint[0]**2 + waypoint_left_y**2))
+        print('right_dist :', math.sqrt(waypoint[0]**2 + waypoint_right_y**2))
+
+        return waypoint_side_radian, waypoint_side_distance
+
+    def object_detection(self, lidar_data, waypoint_distance):
+        print('lidar_data :', lidar_data)
+        #print('lidar_data_min :', np.min(lidar_data))
+        print('waypoint_side_distance2 :', waypoint_distance)
+        object = False
+
+        for i in range(len(waypoint_distance)):
+            min_waypoint_distance = np.min(waypoint_distance[i])
+
+            try:
+                lidar_data_min = np.min(lidar_data)
+            except:
+                lidar_data_min = 0.0001
+            if lidar_data_min <= min_waypoint_distance:
+                object = True
+
+        return object
+
 
 
     def object_detection2(self, waypoint_left_end, waypoint_right_end, waypoint, lidar_data):

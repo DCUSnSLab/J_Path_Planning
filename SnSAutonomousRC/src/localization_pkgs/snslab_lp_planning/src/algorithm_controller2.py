@@ -182,9 +182,12 @@ class AlgorithmSelector():
                 speed, steering_angle = FollowTheGapMethod().inputRawData(self.lidar_data)
             elif self.name=='DisparityExtender':
                 speed, steering_angle = DisparityExtenderMethod().inputRawData(self.lidar_data)
+                self.ackermannMSG.drive.speed = speed
+                self.ackermannMSG.drive.steering_angle = steering_angle
             elif self.name=='J_pathplanning':
-                speed = 0
-                steering_angle = 0
+
+                object = False
+
                 #speed, steering_angle = self.j.inputData(200, 160, self.lidar_data)
 
                 # self.br.sendTransform((0.0, 0.0, 0.0),
@@ -196,36 +199,52 @@ class AlgorithmSelector():
                 if np.array_equal(self.waypointList, self.previous_firstValue) == False:
                     self.waypoint_idx = 0
 
-                current_positionList = self.tp.odom_and_particle(self.particle_positionX, self.particle_positionY, self.odomX, self.odomY)
-                waypoint_transform = self.utf.coordinate_transform(self.waypointList, self.euler, current_positionList)
+                    current_positionList = self.tp.odom_and_particle(self.particle_positionX, self.particle_positionY, self.odomX, self.odomY)
 
+                if len(self.waypointList) > 4:
+                    waypoint_transform = self.utf.coordinate_transform(self.waypointList[:5], self.euler, current_positionList)
+                elif len(self.waypointList < 4):
+                    waypoint_transform = self.utf.coordinate_transform(self.waypointList[:2], self.euler,
+                                                                       current_positionList)
                 if len(self.waypointList) > 0:
                     self.waypoint_idx = self.tp.next_waypoint(waypoint_transform[self.waypoint_idx:], self.waypoint_idx)
 
-                    print('index :',self.waypoint_idx)
+                    # print('index :',self.waypoint_idx)
 
                 if len(self.waypointList) > 4:
                     waypoint_left, waypoint_right =  self.oe.waypoint_range(waypoint_transform[self.waypoint_idx:], self.radians_per_point, self.waypoint_idx)
-                    print('waypoint left :', waypoint_left)
-                    print('waypoint right :', waypoint_right)
+                    # print('waypoint left :', waypoint_left)
+                    # print('waypoint right :', waypoint_right)
+
+                    # if waypoint_transform[self.waypoint_idx][1] < 0:   # When the y-coordinate of the next waypoint is greater than zero
+                    #     w_left_side_degree, w_right_side_degree, left_dist, right_dist = self.oe.waypoint_side(180-waypoint_right, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
+                    # else:    # When the y-coordinate of the next waypoint is less than zero
+                    #     w_left_side_degree, w_right_side_degree, left_dist, right_dist = self.oe.waypoint_side(waypoint_left-180, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
 
                     if waypoint_transform[self.waypoint_idx][1] < 0:   # When the y-coordinate of the next waypoint is greater than zero
-                        w_left_side_degree, w_right_side_degree, left_dist, right_dist = self.oe.object_side(180-waypoint_right, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
+                        waypoint_side_radian, waypoint_side_distance = self.oe.waypoint_side(180-waypoint_right, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
                     else:    # When the y-coordinate of the next waypoint is less than zero
-                        w_left_side_degree, w_right_side_degree, left_dist, right_dist = self.oe.object_side(waypoint_left-180, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
-                    print('w_left_side :', w_left_side_degree)
-                    print('w_right_side :', w_right_side_degree)
+                        waypoint_side_radian, waypoint_side_distance = self.oe.waypoint_side(waypoint_left-180, waypoint_transform[self.waypoint_idx], self.radians_per_point)   # Find the angle of both sides of the next waypoint
 
-                    print('left_dist :', left_dist)
-                    print('right_dist :', right_dist)
+                    # print('waypoint side up coordinate :', waypoint_side_radian)
+                    # print('waypoint_side_distance :', waypoint_side_distance)
 
-                    self.oe.object_detection
+                    for i in range(len(waypoint_side_radian)):
+                        object = self.oe.object_detection(self.lidar_data[waypoint_side_radian[i][1]: waypoint_side_radian[i][0]], waypoint_side_distance[i])
+
+                if object == True:
+                    self.j.inputData(0, 0, self.lidar_data)
+                    speed, steering_angle = DisparityExtenderMethod().inputRawData(self.lidar_data)
 
 
+                else:
+                    speed = self.speedA
+                    steering_angle = self.steering_angleA
 
                     # print('waypoint :', waypoint_left[self.waypoint_idx][1])
 
-
+                self.ackermannMSG.drive.speed = speed
+                self.ackermannMSG.drive.steering_angle = steering_angle
 
                 #waypoint_angle = self.oe.waypointInLidar(self.waypointList[self.waypoint_idx:self.waypoint_idx+4], current_positionList)
 
@@ -240,19 +259,19 @@ class AlgorithmSelector():
 
                     #print(speed, steering_angle)
                     #print(speed)
-                    self.ackermannMSG.drive.speed = speed
-                    self.ackermannMSG.drive.steering_angle = steering_angle
+                    # self.ackermannMSG.drive.speed = speed
+                    # self.ackermannMSG.drive.steering_angle = steering_angle
                 self.previous_firstValue = self.waypointList
 
             elif self.name == 'processkill':
                 exit()
             #print('lenth of waypoint :', len(self.waypointList))
-            self.ackermannMSG.drive.speed = self.speedA
-            self.ackermannMSG.drive.steering_angle = self.steering_angleA
+            # self.ackermannMSG.drive.speed = self.speedA
+            # self.ackermannMSG.drive.steering_angle = self.steering_angleA
             #self.ackermannMSG.drive.speed = speed
             #self.ackermannMSG.drive.steering_angle = steering_angle
-            #self.ackermannMSG.drive.speed = 0
-            #self.ackermannMSG.drive.steering_angle = 0
+            # self.ackermannMSG.drive.speed = 0
+            # self.ackermannMSG.drive.steering_angle = 0
             self.drivePub.publish(self.ackermannMSG)
 
 if __name__ == '__main__':
