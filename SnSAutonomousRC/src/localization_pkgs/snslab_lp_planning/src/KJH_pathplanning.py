@@ -12,7 +12,7 @@ class AstarAndExpenderDisparity:
     # CAR_WIDTH = 0.45 # snslab car
     # the min difference between adjacent LiDAR points for us to call them disparate
     DIFFERENCE_THRESHOLD = 2.
-    SPEED = 5.
+    SPEED = 2.
     # the extra safety room we plan for along walls (as a percentage of car_width/2)
     SAFETY_PERCENTAGE = 300.
 
@@ -22,7 +22,8 @@ class AstarAndExpenderDisparity:
         self.current_positionList = np.array([])
         self.flat = True
 
-    def preprocess_lidar(self, ranges):
+    def preprocess_lidar(self, ranges, left_ranges, right_ranges):
+    #def preprocess_lidar(self, ranges):
         """ Any preprocessing of the LiDAR data can be done in this function.
             Possible Improvements: smoothing of outliers in the data and placing
             a cap on the maximum distance a point can be.
@@ -30,7 +31,14 @@ class AstarAndExpenderDisparity:
         # remove quadrant of LiDAR directly behind us
         eighth = int(len(ranges) / 8)
         #print(len(np.array(ranges[eighth:-eighth])))
+        # return np.array(ranges[eighth:-eighth])
+
+
+        #print(len(ranges[right_ranges:left_ranges]))
+
         return np.array(ranges[eighth:-eighth])
+        #return np.array(ranges[right_ranges:left_ranges])
+        #return np.array(ranges[70:315])
 
     def get_differences(self, ranges):
         """ Gets the absolute difference between adjacent elements in
@@ -48,11 +56,9 @@ class AstarAndExpenderDisparity:
             Possible Improvements: replace for loop with numpy array arithmetic
         """
         disparities = []
-        #print(differences)
         for index, difference in enumerate(differences): # index : 0~269
             if difference > threshold:
-                disparities.append(index) # index : 1 ~ 269
-        #print(disparities)
+                disparities.append(index) # index : 1 ~ 270
         return disparities
 
     def get_num_points_to_cover(self, dist, width):
@@ -85,13 +91,13 @@ class AstarAndExpenderDisparity:
             Possible improvements: reduce this function to fewer lines
         """
         new_dist = ranges[start_idx]
-        if cover_right:
+        if cover_right:                             # Cover from right to left
             for i in range(num_points):
                 next_idx = start_idx + 1 + i
                 if next_idx >= len(ranges): break
                 if ranges[next_idx] > new_dist:
                     ranges[next_idx] = new_dist
-        else:
+        else:                                        # Cover from left to right
             for i in range(num_points):
                 next_idx = start_idx - 1 - i
                 if next_idx < 0: break
@@ -107,17 +113,17 @@ class AstarAndExpenderDisparity:
             Possible Improvements: reduce to fewer lines
         """
         width_to_cover = (car_width / 2) * (1 + extra_pct / 100)
+
         for index in disparities:
             first_idx = index - 1
             points = ranges[first_idx:first_idx + 2]
-            #print('points:', points)
-            close_idx = first_idx + np.argmin(points)
-            far_idx = first_idx + np.argmax(points)
+            close_idx = first_idx + np.argmin(points)  # np.argmin : Returns the index for the minimum value among the values in the list
+            far_idx = first_idx + np.argmax(points)    # np.argmax : Returns the index for the maximum value among the values in the list
             close_dist = ranges[close_idx]
             num_points_to_cover = self.get_num_points_to_cover(close_dist,
                                                                width_to_cover)
             cover_right = close_idx < far_idx
-            ranges = self.cover_points(num_points_to_cover, close_idx,
+            ranges = self.cover_points(num_points_to_cover, close_idx,   # Cover with the previous value of (first_idx + num_points_to_cover) pieces
                                        cover_right, ranges)
         return ranges
 
@@ -130,18 +136,19 @@ class AstarAndExpenderDisparity:
         steering_angle = np.clip(lidar_angle, np.radians(-90), np.radians(90))
         return steering_angle
 
-    def _process_lidar(self, ranges):
+    def _process_lidar(self, ranges, left_ranges, right_ranges):
         """ Run the disparity extender algorithm!
             Possible improvements: varying the speed based on the
             steering angle or the distance to the farthest point.
         """
         self.radians_per_point = (2 * np.pi) / len(ranges)
-        proc_ranges = self.preprocess_lidar(ranges)
+
+        proc_ranges = self.preprocess_lidar(ranges, left_ranges, right_ranges)
+        #print(len(proc_ranges))
         differences = self.get_differences(proc_ranges) # two point difference of distance
         disparities = self.get_disparities(differences, self.DIFFERENCE_THRESHOLD)
         proc_ranges = self.extend_disparities(disparities, proc_ranges,
                                               self.CAR_WIDTH, self.SAFETY_PERCENTAGE)
-        #print(proc_ranges.argmax())
         steering_angle = self.get_steering_angle(proc_ranges.argmax(),
                                                  len(proc_ranges))
         speed = self.SPEED
@@ -154,19 +161,22 @@ class AstarAndExpenderDisparity:
 
 
 
-    def inputData(self, lidar_data, current_position, waypoint_idx, waypointList=np.array([])):
-
+    #def inputData(self, lidar_data, current_position, waypoint_idx, waypointList=np.array([])):
+    def inputData(self, left_range, right_range, lidar_data):
         if len(lidar_data)==0:
             self.speed, self.steering_angle = 0.0, 0.0
         else:
-            self.speed, self.steering_angle = self._process_lidar(lidar_data)
+            #print(len(lidar_data))
+            self.speed, self.steering_angle = self._process_lidar(lidar_data, left_range, right_range)
+            print(self.speed, self.steering_angle)
 
-        self.current_positionList = current_position
+        #self.current_positionList = current_position
 
         #waypoint_idx = TrajectoryPoint().next_waypoint(waypointList, current_position, waypoint_idx)
         #self.fusionAlgorithm(waypointList[1:5], current_position)
 
-        return self.speed, self.steering_angle, waypoint_idx
+        #return self.speed, self.steering_angle, waypoint_idx
+        return self.speed, self.steering_angle
 
     def process_observation(self, ranges, ego_odom):
         return self._process_lidar(ranges)
