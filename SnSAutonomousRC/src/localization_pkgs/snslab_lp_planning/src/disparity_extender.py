@@ -118,7 +118,7 @@ class DisparityExtenderMethod:
         """
         num_points_to_cover = 0
         width_to_cover = (car_width / 2) * (1 + extra_pct / 100)
-        print(disparities)
+        #print(disparities)
 
         for index in disparities:
             first_idx = index - 1
